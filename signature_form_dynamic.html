@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Signature double</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      touch-action: none;
+      margin-bottom: 10px;
+    }
+    .signature-container {
+      margin-bottom: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h2>✍️ Signature 1</h2>
+  <div class="signature-container">
+    <canvas id="signature1" width="300" height="150"></canvas><br>
+    <button onclick="effacer('signature1')">Effacer</button>
+  </div>
+
+  <h2>✍️ Signature 2</h2>
+  <div class="signature-container">
+    <canvas id="signature2" width="300" height="150"></canvas><br>
+    <button onclick="effacer('signature2')">Effacer</button>
+  </div>
+
+  <button onclick="envoyer()" style="padding: 12px 24px; font-size: 16px;">✅ Envoyer les signatures</button>
+  <p id="statut"></p>
+
+  <script>
+    const canvases = ['signature1', 'signature2'];
+    canvases.forEach(id => initCanvas(id));
+
+    function initCanvas(id) {
+      const canvas = document.getElementById(id);
+      const ctx = canvas.getContext('2d');
+      let drawing = false;
+
+      function start(e) {
+        drawing = true;
+        ctx.beginPath();
+        ctx.moveTo(e.offsetX || e.touches[0].clientX - canvas.offsetLeft,
+                   e.offsetY || e.touches[0].clientY - canvas.offsetTop);
+        e.preventDefault();
+      }
+
+      function draw(e) {
+        if (!drawing) return;
+        ctx.lineTo(e.offsetX || e.touches[0].clientX - canvas.offsetLeft,
+                   e.offsetY || e.touches[0].clientY - canvas.offsetTop);
+        ctx.stroke();
+        e.preventDefault();
+      }
+
+      function end() {
+        drawing = false;
+      }
+
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', end);
+      canvas.addEventListener('mouseout', end);
+
+      canvas.addEventListener('touchstart', start);
+      canvas.addEventListener('touchmove', draw);
+      canvas.addEventListener('touchend', end);
+    }
+
+    function effacer(id) {
+      const canvas = document.getElementById(id);
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function envoyer() {
+      const statut = document.getElementById('statut');
+      statut.innerText = '⏳ Envoi en cours...';
+
+      const scriptURL = new URLSearchParams(window.location.search).get('script');
+      if (!scriptURL) {
+        statut.innerText = '❌ Lien du script manquant.';
+        return;
+      }
+
+      const sig1 = document.getElementById('signature1').toDataURL();
+      const sig2 = document.getElementById('signature2').toDataURL();
+
+      fetch(scriptURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sig1, sig2 })
+      })
+      .then(res => res.text())
+      .then(txt => {
+        statut.innerText = '✅ Signatures envoyées avec succès !';
+      })
+      .catch(err => {
+        statut.innerText = '❌ Erreur lors de l\'envoi.';
+        console.error(err);
+      });
+    }
+  </script>
+</body>
+</html>
