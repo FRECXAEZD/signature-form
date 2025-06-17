@@ -2,110 +2,162 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Signature double</title>
+  <title>Formulaire Signature + PDF</title>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
-    canvas {
-      border: 1px solid #ccc;
-      touch-action: none;
-      margin-bottom: 10px;
-    }
-    .signature-container {
-      margin-bottom: 30px;
-    }
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    canvas { border: 1px solid #ccc; display: block; margin: 10px auto; touch-action: none; }
+    button { margin: 10px; font-size: 16px; padding: 10px; }
   </style>
 </head>
 <body>
-  <h2>✍️ Signature 1</h2>
-  <div class="signature-container">
-    <canvas id="signature1" width="300" height="150"></canvas><br>
-    <button onclick="effacer('signature1')">Effacer</button>
+  <h2>📋 Choisissez une action</h2>
+  <div>
+    <button onclick="afficher('signature')">✍️ Signer</button>
+    <button onclick="afficher('pdf')">📤 Envoyer PDF</button>
   </div>
 
-  <h2>✍️ Signature 2</h2>
-  <div class="signature-container">
-    <canvas id="signature2" width="300" height="150"></canvas><br>
-    <button onclick="effacer('signature2')">Effacer</button>
+  <div id="zone_signature" style="display:none;">
+    <h3>✍️ Signatures</h3>
+
+    <div>
+      <h4>Signature 1</h4>
+      <canvas id="signature1" width="300" height="150"></canvas><br>
+      <button onclick="clearCanvas('signature1')">Effacer</button>
+    </div>
+
+    <div>
+      <h4>Signature 2</h4>
+      <canvas id="signature2" width="300" height="150"></canvas><br>
+      <button onclick="clearCanvas('signature2')">Effacer</button>
+    </div>
+
+    <button onclick="envoyerSignatures()">Envoyer les signatures</button>
+    <p id="status_signature"></p>
   </div>
 
-  <button onclick="envoyer()" style="padding: 12px 24px; font-size: 16px;">✅ Envoyer les signatures</button>
-  <p id="statut"></p>
+  <div id="zone_pdf" style="display:none;">
+    <h3>📤 Envoi PDF</h3>
+    <button onclick="envoyerPDF()">Envoyer PDF</button>
+    <p id="status_pdf"></p>
+  </div>
 
   <script>
-    const canvases = ['signature1', 'signature2'];
-    canvases.forEach(id => initCanvas(id));
+    function afficher(zone) {
+      document.getElementById('zone_signature').style.display = (zone === 'signature') ? 'block' : 'none';
+      document.getElementById('zone_pdf').style.display = (zone === 'pdf') ? 'block' : 'none';
+    }
 
-    function initCanvas(id) {
+    function setupCanvas(id) {
       const canvas = document.getElementById(id);
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       let drawing = false;
 
-      function start(e) {
+      canvas.addEventListener("mousedown", () => drawing = true);
+      canvas.addEventListener("mouseup", () => { drawing = false; ctx.beginPath(); });
+      canvas.addEventListener("mouseout", () => { drawing = false; ctx.beginPath(); });
+      canvas.addEventListener("mousemove", e => draw(e, canvas, ctx));
+
+      canvas.addEventListener("touchstart", function(e) {
+        e.preventDefault();
         drawing = true;
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
         ctx.beginPath();
-        ctx.moveTo(e.offsetX || e.touches[0].clientX - canvas.offsetLeft,
-                   e.offsetY || e.touches[0].clientY - canvas.offsetTop);
-        e.preventDefault();
-      }
+        ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+      });
 
-      function draw(e) {
+      canvas.addEventListener("touchmove", function(e) {
+        e.preventDefault();
         if (!drawing) return;
-        ctx.lineTo(e.offsetX || e.touches[0].clientX - canvas.offsetLeft,
-                   e.offsetY || e.touches[0].clientY - canvas.offsetTop);
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
         ctx.stroke();
-        e.preventDefault();
-      }
+      });
 
-      function end() {
+      canvas.addEventListener("touchend", function(e) {
         drawing = false;
-      }
-
-      canvas.addEventListener('mousedown', start);
-      canvas.addEventListener('mousemove', draw);
-      canvas.addEventListener('mouseup', end);
-      canvas.addEventListener('mouseout', end);
-
-      canvas.addEventListener('touchstart', start);
-      canvas.addEventListener('touchmove', draw);
-      canvas.addEventListener('touchend', end);
+        ctx.beginPath();
+      });
     }
 
-    function effacer(id) {
+    function draw(e, canvas, ctx) {
+      if (!e.buttons && e.type !== 'touchmove') return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX || e.touches?.[0]?.clientX;
+      const y = e.clientY || e.touches?.[0]?.clientY;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#000";
+      ctx.lineTo(x - rect.left, y - rect.top);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - rect.left, y - rect.top);
+    }
+
+    function clearCanvas(id) {
       const canvas = document.getElementById(id);
-      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
     }
 
-    function envoyer() {
-      const statut = document.getElementById('statut');
-      statut.innerText = '⏳ Envoi en cours...';
+    function envoyerSignatures() {
+      const sig1 = document.getElementById("signature1").toDataURL("image/png");
+      const sig2 = document.getElementById("signature2").toDataURL("image/png");
+      const scriptURL = new URLSearchParams(window.location.search).get("script");
 
-      const scriptURL = new URLSearchParams(window.location.search).get('script');
       if (!scriptURL) {
-        statut.innerText = '❌ Lien du script manquant.';
+        document.getElementById("status_signature").innerText = "❌ Lien du script manquant.";
         return;
       }
 
-      const sig1 = document.getElementById('signature1').toDataURL();
-      const sig2 = document.getElementById('signature2').toDataURL();
+      document.getElementById("status_signature").innerText = "⏳ Envoi en cours...";
 
       fetch(scriptURL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sig1, sig2 })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sig1, sig2, action: "signatures" })
       })
       .then(res => res.text())
       .then(txt => {
-        statut.innerText = '✅ Signatures envoyées avec succès !';
+        document.getElementById("status_signature").innerText = "✅ Signatures enregistrées";
       })
       .catch(err => {
-        statut.innerText = '❌ Erreur lors de l\'envoi.';
+        document.getElementById("status_signature").innerText = "❌ Erreur lors de l'envoi";
         console.error(err);
       });
     }
+
+    function envoyerPDF() {
+      const scriptURL = new URLSearchParams(window.location.search).get("script");
+
+      if (!scriptURL) {
+        document.getElementById("status_pdf").innerText = "❌ Lien du script manquant.";
+        return;
+      }
+
+      document.getElementById("status_pdf").innerText = "⏳ Envoi en cours...";
+
+      fetch(scriptURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pdf" })
+      })
+      .then(res => res.text())
+      .then(txt => {
+        document.getElementById("status_pdf").innerText = "✅ PDF envoyé avec succès !";
+      })
+      .catch(err => {
+        document.getElementById("status_pdf").innerText = "❌ Erreur d'envoi PDF";
+        console.error(err);
+      });
+    }
+
+    window.onload = () => {
+      setupCanvas("signature1");
+      setupCanvas("signature2");
+    };
   </script>
 </body>
 </html>
